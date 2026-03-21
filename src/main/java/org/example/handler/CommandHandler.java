@@ -232,6 +232,7 @@ public class CommandHandler {
         // Обработка команд
         switch (text) {
             case "/start":
+            case "/help":
                 message.setText("👋 Привет! Я бот-трекер привычек!\n\n" +
                         "📌 /create - создать новую привычку\n" +
                         "📋 /list - показать мои привычки\n" +
@@ -239,7 +240,8 @@ public class CommandHandler {
                         "🗑️ /delete - удалить привычку\n" +
                         "✅ /done - отметить выполнение привычки\n" +
                         "🔄 /undone - отменить выполнение привычки\n" +
-                        "📊 /stats - показать статистику");
+                        "📊 /stats - показать статистику\n"+
+                        "❓ /help - показать это сообщение");
                 break;
 
             case "/create":
