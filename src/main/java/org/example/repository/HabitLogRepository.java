@@ -4,6 +4,8 @@ import org.example.model.HabitLog;
 import org.example.config.DatabaseConfig;
 import java.sql.*;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 
 public class HabitLogRepository {
 
@@ -85,5 +87,38 @@ public class HabitLogRepository {
             System.err.println("Ошибка delete log: " + e.getMessage());
             e.printStackTrace();
         }
+    }
+
+    // Добавь этот метод в HabitLogRepository.java
+
+    public List<HabitLog> findByHabitIdAndDateRange(int habitId, LocalDate startDate, LocalDate endDate) {
+        List<HabitLog> logs = new ArrayList<>();
+        String sql = "SELECT * FROM HabitLogs WHERE habitId = ? AND logDate BETWEEN ? AND ? ORDER BY logDate DESC";
+
+        try (Connection conn = DatabaseConfig.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setInt(1, habitId);
+            stmt.setDate(2, Date.valueOf(startDate));
+            stmt.setDate(3, Date.valueOf(endDate));
+            ResultSet rs = stmt.executeQuery();
+
+            while (rs.next()) {
+                HabitLog log = new HabitLog();
+                log.setId(rs.getInt("id"));
+                log.setHabitId(rs.getInt("habitId"));
+                log.setLogDate(rs.getDate("logDate").toLocalDate());
+                log.setStatus(rs.getString("status"));
+
+                Timestamp ts = rs.getTimestamp("loggedAt");
+                if (ts != null) {
+                    log.setLoggedAt(ts.toLocalDateTime());
+                }
+                logs.add(log);
+            }
+        } catch (SQLException e) {
+            System.err.println("Ошибка findByHabitIdAndDateRange: " + e.getMessage());
+            e.printStackTrace();
+        }
+        return logs;
     }
 }

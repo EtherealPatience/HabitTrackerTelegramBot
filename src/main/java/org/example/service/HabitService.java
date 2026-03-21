@@ -7,6 +7,10 @@ import org.example.repository.HabitRepository;
 import org.example.repository.HabitLogRepository;
 import java.util.List;
 
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
+
 public class HabitService {
     private final HabitRepository habitRepo = new HabitRepository();
     private final HabitLogRepository logRepo = new HabitLogRepository();
@@ -305,5 +309,188 @@ public class HabitService {
         }
 
         return "🔄 Отлично! Выполнение привычки \"" + habit.getName() + "\" отменено. Привычка снова ожидает выполнения!";
+    }
+
+    // Метод для получения статистики
+    // Метод для получения статистики
+    public String getStatistics(long chatId) {
+        User user = userService.getByTelegramId(chatId);
+        if (user == null) {
+            return "❌ Ошибка: пользователь не найден";
+        }
+
+        List<Habit> habits = habitRepo.findByUserId(user.getId());
+        if (habits.isEmpty()) {
+            return "📭 У вас нет привычек. Создайте через /create";
+        }
+
+        LocalDate today = LocalDate.now();
+        // Находим понедельник текущей недели
+        LocalDate startOfWeek = today.minusDays(today.getDayOfWeek().getValue() - 1);
+        LocalDate endOfWeek = startOfWeek.plusDays(6);
+
+        StringBuilder sb = new StringBuilder("📊 **СТАТИСТИКА**\n");
+        sb.append("━━━━━━━━━━━━━━━━━━━━━━\n\n");
+
+        // 1. Статистика за сегодня
+        sb.append("📅 **СЕГОДНЯ:**\n");
+        int todayCompleted = 0;
+        for (Habit habit : habits) {
+            HabitLog log = logRepo.findTodayLog(habit.getId());
+            if (log != null && "DONE".equals(log.getStatus())) {
+                todayCompleted++;
+            }
+        }
+        int todayProgress = habits.size() > 0 ? (todayCompleted * 100 / habits.size()) : 0;
+        sb.append("✅ Выполнено: ").append(todayCompleted).append("/").append(habits.size()).append("\n");
+        sb.append("📈 Прогресс: ").append(todayProgress).append("%\n");
+        sb.append(getProgressBar(todayProgress)).append("\n\n");
+
+        // 2. Статистика за неделю
+        sb.append("📆 **ЗА НЕДЕЛЮ:**\n");
+        int totalCompletions = 0;
+        int totalPossible = habits.size() * 7;
+
+        for (Habit habit : habits) {
+            List<HabitLog> logs = logRepo.findByHabitIdAndDateRange(habit.getId(), startOfWeek, endOfWeek);
+            int completed = 0;
+            for (HabitLog log : logs) {
+                if ("DONE".equals(log.getStatus())) {
+                    completed++;
+                }
+            }
+            totalCompletions += completed;
+        }
+
+        int weeklyProgress = totalPossible > 0 ? (totalCompletions * 100 / totalPossible) : 0;
+        sb.append("🎯 Всего выполнений: ").append(totalCompletions).append("/").append(totalPossible).append("\n");
+        sb.append("📈 Средний прогресс: ").append(weeklyProgress).append("%\n\n");
+
+        // 3. Лучшие привычки за неделю
+        sb.append("🏆 **ТОП ПРИВЫЧЕК ЗА НЕДЕЛЮ:**\n");
+
+        List<HabitStats> stats = new ArrayList<>();
+        for (Habit habit : habits) {
+            List<HabitLog> logs = logRepo.findByHabitIdAndDateRange(habit.getId(), startOfWeek, endOfWeek);
+            int completed = 0;
+            for (HabitLog log : logs) {
+                if ("DONE".equals(log.getStatus())) {
+                    completed++;
+                }
+            }
+            stats.add(new HabitStats(habit.getName(), completed));
+        }
+
+        // Сортируем по убыванию
+        stats.sort((a, b) -> Integer.compare(b.completed, a.completed));
+
+        for (int i = 0; i < Math.min(3, stats.size()); i++) {
+            HabitStats stat = stats.get(i);
+            String medal = i == 0 ? "🥇" : (i == 1 ? "🥈" : "🥉");
+            int percent = stat.completed * 100 / 7;
+            sb.append(medal).append(" ").append(stat.name).append(" — ");
+            sb.append(stat.completed).append("/7 (").append(percent).append("%)\n");
+        }
+        sb.append("\n");
+
+        // 4. Детальная статистика по каждой привычке
+        sb.append("📋 **ПОДРОБНО ПО ПРИВЫЧКАМ:**\n");
+        sb.append("━━━━━━━━━━━━━━━━━━━━━━\n");
+
+        String[] dayIcons = {" ПН ", " ВТ ", " СР ", " ЧТ ", " ПТ ", " СБ ", " ВС "};
+
+        for (Habit habit : habits) {
+            // Сегодняшний статус
+            HabitLog todayLog = logRepo.findTodayLog(habit.getId());
+            String todayStatus = (todayLog != null && "DONE".equals(todayLog.getStatus())) ? "✅" : "⭕";
+
+            // Недельная статистика
+            List<HabitLog> weekLogs = logRepo.findByHabitIdAndDateRange(habit.getId(), startOfWeek, endOfWeek);
+            int weekCompleted = 0;
+            for (HabitLog log : weekLogs) {
+                if ("DONE".equals(log.getStatus())) {
+                    weekCompleted++;
+                }
+            }
+
+            sb.append(todayStatus).append(" **").append(habit.getName()).append("**\n");
+            sb.append("   ⏰ ").append(habit.getReminderTime()).append(" | ");
+            sb.append("🏷️ ").append(habit.getCategory()).append("\n");
+            sb.append("   📊 Неделя: ").append(weekCompleted).append("/7 (");
+            sb.append(weekCompleted * 100 / 7).append("%)\n");
+
+            // Строка с галочками - каждая занимает ровно 4 символа (✅ + два пробела)
+            sb.append("   ");
+            for (int i = 0; i < 7; i++) {
+                LocalDate date = startOfWeek.plusDays(i);
+                boolean completed = false;
+                for (HabitLog log : weekLogs) {
+                    if (log.getLogDate().equals(date) && "DONE".equals(log.getStatus())) {
+                        completed = true;
+                        break;
+                    }
+                }
+                if (completed) {
+                    sb.append("✅  ");
+                } else {
+                    sb.append("❌  ");
+                }
+            }
+            sb.append("\n");
+
+            // Строка с днями недели - каждый занимает ровно 4 символа (ПН + два пробела)
+            sb.append("   ");
+            for (int i = 0; i < 7; i++) {
+                sb.append(dayIcons[i]).append(" ");
+            }
+            sb.append("\n\n");
+        }
+
+        // 5. Мотивационная фраза
+        sb.append(getMotivationalMessage(todayProgress, weeklyProgress));
+
+        return sb.toString();
+    }
+
+    // Вспомогательный класс для статистики
+    private static class HabitStats {
+        String name;
+        int completed;
+        HabitStats(String name, int completed) {
+            this.name = name;
+            this.completed = completed;
+        }
+    }
+
+    // Прогресс-бар
+    private String getProgressBar(int percent) {
+        int filled = percent / 10;
+        StringBuilder bar = new StringBuilder("[");
+        for (int i = 0; i < 10; i++) {
+            bar.append(i < filled ? "█" : "░");
+        }
+        bar.append("]");
+        return bar.toString();
+    }
+
+    // Мотивационное сообщение
+    private String getMotivationalMessage(int todayProgress, int weeklyProgress) {
+        if (todayProgress == 100) {
+            return "🎉 **ИДЕАЛЬНЫЙ ДЕНЬ!** Все привычки выполнены! Так держать! 💪\n";
+        } else if (todayProgress >= 80) {
+            return "🌟 **ОТЛИЧНО!** Ты почти выполнил все привычки. Осталось совсем немного! ✨\n";
+        } else if (todayProgress >= 50) {
+            return "👍 **ХОРОШО!** Ты на полпути. Продолжай в том же духе! 🚀\n";
+        } else if (todayProgress >= 20) {
+            return "💪 **НЕПЛОХО!** У тебя есть время выполнить остальные привычки. Вперед! ⏰\n";
+        } else if (todayProgress > 0) {
+            return "🌱 **НАЧАЛО ПОЛОЖЕНО!** Каждая выполненная привычка приближает тебя к цели. Не сдавайся! 🌟\n";
+        } else {
+            if (weeklyProgress > 0) {
+                return "📅 **СЕГОДНЯ ТЫ МОЖЕШЬ НАЧАТЬ!** Посмотри на свой прогресс за неделю и сделай первый шаг сегодня! 🚀\n";
+            } else {
+                return "✨ **НОВЫЙ ДЕНЬ - НОВЫЕ ВОЗМОЖНОСТИ!** Создай привычку и начни путь к лучшей версии себя! 🌟\n";
+            }
+        }
     }
 }

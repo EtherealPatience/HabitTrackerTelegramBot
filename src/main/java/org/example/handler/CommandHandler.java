@@ -254,7 +254,7 @@ public class CommandHandler {
                 break;
 
             case "/stats":
-                String stats = habitService.getList(chatId);
+                String stats = habitService.getStatistics(chatId);
                 message.setText("📊 Статистика:\n\n" + stats);
                 message.setParseMode("Markdown");
                 break;
