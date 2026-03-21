@@ -21,6 +21,7 @@ public class ReminderService {
     public ReminderService(TelegramLongPollingBot bot) {
         this.bot = bot;
         startReminderChecker();
+        System.out.println("✅ Сервис напоминаний запущен");
     }
 
     private void startReminderChecker() {
@@ -30,32 +31,50 @@ public class ReminderService {
             public void run() {
                 checkReminders();
             }
-        }, 0, 60000);
+        }, 0, 60000); // Проверка каждую минуту
     }
 
     private void checkReminders() {
         LocalTime now = LocalTime.now();
         String currentTime = now.format(DateTimeFormatter.ofPattern("HH:mm"));
+        System.out.println("🔍 Проверка напоминаний... Текущее время: " + currentTime);
 
         List<Habit> habits = habitRepo.findAllActive();
+        System.out.println("📋 Всего активных привычек: " + habits.size());
 
         for (Habit habit : habits) {
-            if (habit.getReminderTime() != null && currentTime.equals(habit.getReminderTime())) {
-                sendReminder(habit);
+            if (habit.getReminderTime() != null && !habit.getReminderTime().isEmpty()) {
+                System.out.println("  - Привычка: " + habit.getName() +
+                        ", ID в БД: " + habit.getId() +
+                        ", userId: " + habit.getUserId() +
+                        ", время: " + habit.getReminderTime());
+
+                if (currentTime.equals(habit.getReminderTime())) {
+                    System.out.println("⏰ Время совпало! Отправляем напоминание для: " + habit.getName());
+                    sendReminder(habit);
+                }
             }
         }
     }
 
     private void sendReminder(Habit habit) {
-        User user = userRepo.findByTelegramId(habit.getUserId());
-        if (user == null) return;
+        // Важно: habit.getUserId() - это id из таблицы Users (внутренний ID)
+        // Используем findById, а не findByTelegramId
+        User user = userRepo.findById(habit.getUserId());
+
+        if (user == null) {
+            System.out.println("❌ Пользователь не найден по userId: " + habit.getUserId());
+            return;
+        }
+
+        System.out.println("✅ Найден пользователь: telegramId=" + user.getTelegramId());
 
         String message = String.format(
                 "⏰ **Напоминание!**\n\n" +
                         "Пришло время выполнить привычку:\n" +
                         "📌 *%s*\n" +
                         "🏷️ Категория: %s\n\n" +
-                        "Нажми /done чтобы отметить выполнение",
+                        "✅ Отметьте выполнение командой /done и выберите номер этой привычки",
                 habit.getName(), habit.getCategory()
         );
 
@@ -66,9 +85,9 @@ public class ReminderService {
 
         try {
             bot.execute(sendMessage);
-            System.out.println("📨 Напоминание отправлено: " + habit.getName());
+            System.out.println("📨 Напоминание отправлено!");
         } catch (Exception e) {
-            System.err.println("❌ Ошибка отправки напоминания: " + e.getMessage());
+            System.err.println("❌ Ошибка отправки: " + e.getMessage());
         }
     }
 }

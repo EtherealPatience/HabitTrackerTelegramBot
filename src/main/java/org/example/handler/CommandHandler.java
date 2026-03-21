@@ -34,6 +34,7 @@ public class CommandHandler {
         // Проверяем состояние (для создания привычки)
         String state = userStates.get(chatId);
 
+        // Состояние: ожидание названия привычки
         if ("waiting_habit_name".equals(state)) {
             tempData.put(chatId, "name:" + text);
             userStates.put(chatId, "waiting_habit_time");
@@ -41,6 +42,7 @@ public class CommandHandler {
             return message;
         }
 
+        // Состояние: ожидание времени
         if ("waiting_habit_time".equals(state)) {
             String data = tempData.get(chatId);
             if (data != null && data.startsWith("name:")) {
@@ -63,15 +65,28 @@ public class CommandHandler {
             }
         }
 
+        // Состояние: ожидание номера привычки для /done
+        if ("waiting_done_number".equals(state)) {
+            try {
+                int index = Integer.parseInt(text.trim());
+                String result = habitService.markDoneByIndex(chatId, index);
+                userStates.remove(chatId);
+                message.setText(result);
+            } catch (NumberFormatException e) {
+                message.setText("❌ Неверный формат. Введите номер привычки (число)");
+            }
+            return message;
+        }
+
         // Обработка команд
         switch (text) {
             case "/start":
                 message.setText("👋 Привет! Я бот-трекер привычек!\n\n" +
                         "📌 /create - создать новую привычку\n" +
                         "📋 /list - показать мои привычки\n" +
-                        "✅ /done [ID] - отметить выполнение привычки\n" +
+                        "✅ /done - отметить выполнение привычки\n" +
                         "📊 /stats - показать статистику\n\n" +
-                        "Пример: /done 1");
+                        "Пример: /done → выберите номер → введите цифру");
                 break;
 
             case "/create":
@@ -91,25 +106,18 @@ public class CommandHandler {
                 message.setParseMode("Markdown");
                 break;
 
-            default:
-                if (text.startsWith("/done ")) {
-                    try {
-                        String[] parts = text.split(" ");
-                        if (parts.length < 2) {
-                            message.setText("❌ Используйте: /done [ID привычки]\n\n" +
-                                    "Посмотреть ID можно в /list");
-                        } else {
-                            int habitId = Integer.parseInt(parts[1].trim());
-                            String result = habitService.markDone(chatId, habitId);
-                            message.setText(result);
-                        }
-                    } catch (NumberFormatException e) {
-                        message.setText("❌ Неверный формат ID. Используйте число.\n\n" +
-                                "Пример: /done 1");
-                    }
+            case "/done":
+                String habitsList = habitService.getHabitsListForDone(chatId);
+                if (habitsList.contains("У вас нет привычек")) {
+                    message.setText(habitsList);
                 } else {
-                    message.setText("❓ Неизвестная команда. Используйте /start");
+                    userStates.put(chatId, "waiting_done_number");
+                    message.setText(habitsList);
                 }
+                break;
+
+            default:
+                message.setText("❓ Неизвестная команда. Используйте /start");
         }
 
         return message;

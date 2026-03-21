@@ -81,4 +81,37 @@ public class UserRepository {
             e.printStackTrace();
         }
     }
+
+    // Добавь этот метод в конец класса UserRepository
+
+    public User findById(int id) {
+        String sql = "SELECT * FROM Users WHERE id = ?";
+        try (Connection conn = DatabaseConfig.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setInt(1, id);
+            ResultSet rs = stmt.executeQuery();
+            if (rs.next()) {
+                User u = new User();
+                u.setId(rs.getInt("id"));
+                u.setTelegramId(rs.getLong("telegramId"));
+                u.setUsername(rs.getString("username"));
+                u.setFirstName(rs.getString("firstName"));
+
+                Timestamp regTs = rs.getTimestamp("registeredDate");
+                if (regTs != null) {
+                    u.setRegisteredDate(regTs.toLocalDateTime());
+                }
+
+                Timestamp lastTs = rs.getTimestamp("lastActive");
+                if (lastTs != null) {
+                    u.setLastActive(lastTs.toLocalDateTime());
+                }
+                return u;
+            }
+        } catch (SQLException e) {
+            System.err.println("Ошибка findById: " + e.getMessage());
+            e.printStackTrace();
+        }
+        return null;
+    }
 }

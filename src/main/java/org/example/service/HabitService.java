@@ -49,6 +49,48 @@ public class HabitService {
         return sb.toString();
     }
 
+    // Новый метод: получить список привычек для выбора
+    public String getHabitsListForDone(long chatId) {
+        User user = userService.getByTelegramId(chatId);
+        if (user == null) {
+            return "❌ Ошибка: пользователь не найден";
+        }
+
+        List<Habit> habits = habitRepo.findByUserId(user.getId());
+        if (habits.isEmpty()) {
+            return "📭 У вас нет привычек. Создайте через /create";
+        }
+
+        StringBuilder sb = new StringBuilder("📋 **Выберите привычку для отметки:**\n\n");
+        for (int i = 0; i < habits.size(); i++) {
+            Habit h = habits.get(i);
+            sb.append(i + 1).append(". ").append(h.getName())
+                    .append(" (ID: ").append(h.getId()).append(")\n");
+        }
+        sb.append("\n📝 Введите номер привычки:");
+        return sb.toString();
+    }
+
+    // Новый метод: отметить привычку по номеру в списке
+    public String markDoneByIndex(long chatId, int index) {
+        User user = userService.getByTelegramId(chatId);
+        if (user == null) {
+            return "❌ Ошибка: пользователь не найден";
+        }
+
+        List<Habit> habits = habitRepo.findByUserId(user.getId());
+        if (habits.isEmpty()) {
+            return "📭 У вас нет привычек. Создайте через /create";
+        }
+
+        if (index < 1 || index > habits.size()) {
+            return "❌ Неверный номер. Введите число от 1 до " + habits.size();
+        }
+
+        Habit habit = habits.get(index - 1);
+        return markDone(chatId, habit.getId());
+    }
+
     public String getHabitsForButtons(long chatId) {
         User user = userService.getByTelegramId(chatId);
         if (user == null) return "";
