@@ -35,11 +35,24 @@ public class CommandHandler {
         // Проверяем состояние
         String state = userStates.get(chatId);
 
+
         // Состояние: ожидание названия привычки (создание)
         if ("waiting_habit_name".equals(state)) {
             tempData.put(chatId, "name:" + text);
             userStates.put(chatId, "waiting_habit_time");
             message.setText("⏰ В какое время напоминать? (в формате ЧЧ:ММ, например 09:00)");
+            return message;
+        }
+
+        if ("waiting_undone_number".equals(state)) {
+            try {
+                int index = Integer.parseInt(text.trim());
+                String result = habitService.markUndone(chatId, index);
+                userStates.remove(chatId);
+                message.setText(result);
+            } catch (NumberFormatException e) {
+                message.setText("❌ Неверный формат. Введите номер привычки (число)");
+            }
             return message;
         }
 
@@ -225,6 +238,7 @@ public class CommandHandler {
                         "✏️ /edit - редактировать привычку\n" +
                         "🗑️ /delete - удалить привычку\n" +
                         "✅ /done - отметить выполнение привычки\n" +
+                        "🔄 /undone - отменить выполнение привычки\n" +
                         "📊 /stats - показать статистику");
                 break;
 
@@ -272,6 +286,21 @@ public class CommandHandler {
                 } else {
                     userStates.put(chatId, "waiting_edit_choice");
                     message.setText(editList);
+                }
+                break;
+
+            case "/undone":
+                String undoneList = habitService.getHabitsListForUndone(chatId);
+                // Проверяем, есть ли выполненные привычки
+                if (undoneList.contains("нет выполненных привычек") || undoneList.contains("У вас нет привычек")) {
+                    // Если нет выполненных привычек, просто показываем сообщение без ожидания ввода
+                    message.setText(undoneList);
+                    message.setParseMode("Markdown");
+                } else {
+                    // Если есть выполненные привычки, переходим в состояние ожидания
+                    userStates.put(chatId, "waiting_undone_number");
+                    message.setText(undoneList);
+                    message.setParseMode("Markdown");
                 }
                 break;
 

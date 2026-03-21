@@ -71,4 +71,19 @@ public class HabitLogRepository {
             e.printStackTrace();
         }
     }
+
+    // Добавь этот метод в конец класса HabitLogRepository
+
+    public void delete(int id) {
+        String sql = "DELETE FROM HabitLogs WHERE id = ?";
+        try (Connection conn = DatabaseConfig.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setInt(1, id);
+            stmt.executeUpdate();
+            System.out.println("🗑️ Лог удален, id: " + id);
+        } catch (SQLException e) {
+            System.err.println("Ошибка delete log: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
 }

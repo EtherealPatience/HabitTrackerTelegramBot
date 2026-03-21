@@ -221,4 +221,89 @@ public class HabitService {
         }
         return habit;
     }
+
+    // Метод для получения списка привычек с отображением статуса (для undone)
+    // Метод для получения списка привычек с отображением статуса (для undone)
+    public String getHabitsListForUndone(long chatId) {
+        User user = userService.getByTelegramId(chatId);
+        if (user == null) {
+            return "❌ Ошибка: пользователь не найден";
+        }
+
+        List<Habit> habits = habitRepo.findByUserId(user.getId());
+        if (habits.isEmpty()) {
+            return "📭 У вас нет привычек. Создайте через /create";
+        }
+
+        StringBuilder sb = new StringBuilder("🔄 **Выберите привычку для отмены выполнения:**\n\n");
+
+        int completedCount = 0;
+
+        for (int i = 0; i < habits.size(); i++) {
+            Habit h = habits.get(i);
+
+            // Получаем статус выполнения на сегодня
+            HabitLog log = logRepo.findTodayLog(h.getId());
+            boolean isDone = (log != null && "DONE".equals(log.getStatus()));
+
+            if (isDone) {
+                completedCount++;
+                sb.append(i + 1).append(". ✅ **").append(h.getName()).append("**");
+                sb.append(" — выполнено сегодня\n");
+            } else {
+                sb.append(i + 1).append(". ⭕ ").append(h.getName());
+                sb.append(" (").append(h.getReminderTime()).append(")");
+                sb.append(" — не выполнено\n");
+            }
+        }
+
+        sb.append("\n📊 **Статистика на сегодня:**\n");
+        sb.append("✅ Выполнено: ").append(completedCount).append("\n");
+        sb.append("⭕ Не выполнено: ").append(habits.size() - completedCount).append("\n\n");
+
+        if (completedCount == 0) {
+            sb.append("⚠️ У вас нет выполненных привычек сегодня! Нечего отменять.\n");
+            return sb.toString();
+        }
+
+        sb.append("📝 Введите номер привычки, выполнение которой нужно отменить:");
+        return sb.toString();
+    }
+
+    // Метод для отмены выполнения привычки
+    public String markUndone(long chatId, int index) {
+        User user = userService.getByTelegramId(chatId);
+        if (user == null) {
+            return "❌ Ошибка: пользователь не найден";
+        }
+
+        List<Habit> habits = habitRepo.findByUserId(user.getId());
+        if (habits.isEmpty()) {
+            return "📭 У вас нет привычек";
+        }
+
+        if (index < 1 || index > habits.size()) {
+            return "❌ Неверный номер. Введите число от 1 до " + habits.size();
+        }
+
+        Habit habit = habits.get(index - 1);
+
+        // Проверяем, выполнена ли привычка сегодня
+        HabitLog log = logRepo.findTodayLog(habit.getId());
+
+        if (log == null || !"DONE".equals(log.getStatus())) {
+            return "❌ Привычка \"" + habit.getName() + "\" сегодня не была отмечена как выполненная!";
+        }
+
+        // Удаляем запись о выполнении
+        if (log.getId() != 0) {
+            // Если есть запись в БД, удаляем её
+            logRepo.delete(log.getId());
+        } else {
+            // Если по каким-то причинам записи нет, просто возвращаем ошибку
+            return "❌ Ошибка: не удалось найти запись о выполнении";
+        }
+
+        return "🔄 Отлично! Выполнение привычки \"" + habit.getName() + "\" отменено. Привычка снова ожидает выполнения!";
+    }
 }
