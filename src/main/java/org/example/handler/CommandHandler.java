@@ -1,5 +1,6 @@
 package org.example.handler;
 
+import org.example.model.Habit;
 import org.example.model.User;
 import org.example.service.HabitService;
 import org.example.service.UserService;
@@ -31,10 +32,10 @@ public class CommandHandler {
         SendMessage message = new SendMessage();
         message.setChatId(String.valueOf(chatId));
 
-        // Проверяем состояние (для создания привычки)
+        // Проверяем состояние
         String state = userStates.get(chatId);
 
-        // Состояние: ожидание названия привычки
+        // Состояние: ожидание названия привычки (создание)
         if ("waiting_habit_name".equals(state)) {
             tempData.put(chatId, "name:" + text);
             userStates.put(chatId, "waiting_habit_time");
@@ -42,7 +43,7 @@ public class CommandHandler {
             return message;
         }
 
-        // Состояние: ожидание времени
+        // Состояние: ожидание времени (создание)
         if ("waiting_habit_time".equals(state)) {
             String data = tempData.get(chatId);
             if (data != null && data.startsWith("name:")) {
@@ -53,9 +54,8 @@ public class CommandHandler {
                     return message;
                 }
 
-                // Сохраняем для CallbackHandler
-                tempData.put(chatId + 1000, name);
-                tempData.put(chatId + 2000, text);
+                tempData.put(chatId + 1000L, name);
+                tempData.put(chatId + 2000L, text);
                 tempData.remove(chatId);
                 userStates.remove(chatId);
 
@@ -78,15 +78,154 @@ public class CommandHandler {
             return message;
         }
 
+        // Состояние: ожидание номера привычки для /delete
+        if ("waiting_delete_number".equals(state)) {
+            try {
+                int index = Integer.parseInt(text.trim());
+                Habit habit = habitService.getHabitByIndex(chatId, index);
+                if (habit == null) {
+                    userStates.remove(chatId);
+                    message.setText("❌ Привычка не найдена");
+                } else {
+                    String result = habitService.deleteHabit(habit);
+                    userStates.remove(chatId);
+                    message.setText(result);
+                }
+            } catch (NumberFormatException e) {
+                message.setText("❌ Неверный формат. Введите номер привычки (число)");
+            }
+            return message;
+        }
+
+        // Состояние: ожидание номера привычки для /edit
+        if ("waiting_edit_choice".equals(state)) {
+            try {
+                int index = Integer.parseInt(text.trim());
+                Habit habit = habitService.getHabitByIndex(chatId, index);
+                if (habit == null) {
+                    userStates.remove(chatId);
+                    message.setText("❌ Привычка не найдена");
+                } else {
+                    tempData.put(chatId + 100000L, String.valueOf(habit.getId()));
+                    tempData.put(chatId + 100001L, habit.getName());
+                    tempData.put(chatId + 100002L, habit.getCategory());
+                    tempData.put(chatId + 100003L, habit.getReminderTime());
+                    userStates.put(chatId, "waiting_edit_field");
+                    message.setText(getHabitDetailsForEdit(habit));
+                }
+            } catch (NumberFormatException e) {
+                message.setText("❌ Неверный формат. Введите номер привычки (число)");
+            }
+            return message;
+        }
+
+        // Состояние: ожидание выбора поля для редактирования
+        if ("waiting_edit_field".equals(state)) {
+            String habitIdStr = tempData.get(chatId + 100000L);
+            if (habitIdStr == null) {
+                userStates.remove(chatId);
+                message.setText("❌ Ошибка. Попробуйте /edit заново");
+                return message;
+            }
+
+            int habitId = Integer.parseInt(habitIdStr);
+            int choice;
+            try {
+                choice = Integer.parseInt(text.trim());
+            } catch (NumberFormatException e) {
+                message.setText("❌ Введите число (1, 2, 3 или 0 для завершения)");
+                return message;
+            }
+
+            if (choice == 0) {
+                // Завершаем редактирование
+                tempData.remove(chatId + 100000L);
+                tempData.remove(chatId + 100001L);
+                tempData.remove(chatId + 100002L);
+                tempData.remove(chatId + 100003L);
+                userStates.remove(chatId);
+                message.setText("✅ Редактирование завершено!");
+                return message;
+            }
+
+            if (choice == 1) {
+                tempData.put(chatId + 200000L, "name");
+                userStates.put(chatId, "waiting_edit_value");
+                message.setText("📝 Введите новое название для привычки (или 0 для пропуска):");
+            } else if (choice == 2) {
+                tempData.put(chatId + 200000L, "category");
+                userStates.put(chatId, "waiting_edit_value");
+                message.setText("🏷️ Выберите новую категорию (или 0 для пропуска):");
+                message.setReplyMarkup(org.example.util.KeyboardBuilder.createCategoryKeyboard(chatId));
+                return message;
+            } else if (choice == 3) {
+                tempData.put(chatId + 200000L, "time");
+                userStates.put(chatId, "waiting_edit_value");
+                message.setText("⏰ Введите новое время (формат ЧЧ:ММ, например 09:00) или 0 для пропуска:");
+            } else {
+                message.setText("❌ Неверный выбор. Введите 1, 2, 3 или 0 для завершения");
+            }
+            return message;
+        }
+
+        // Состояние: ожидание нового значения
+        if ("waiting_edit_value".equals(state)) {
+            String habitIdStr = tempData.get(chatId + 100000L);
+            String editField = tempData.get(chatId + 200000L);
+
+            if (habitIdStr == null || editField == null) {
+                userStates.remove(chatId);
+                message.setText("❌ Ошибка. Попробуйте /edit заново");
+                return message;
+            }
+
+            int habitId = Integer.parseInt(habitIdStr);
+            Habit habit = habitService.getHabitById(chatId, habitId);
+            if (habit == null) {
+                userStates.remove(chatId);
+                message.setText("❌ Привычка не найдена");
+                return message;
+            }
+
+            String result = "";
+
+            // Если пользователь ввел 0 - пропускаем
+            if ("0".equals(text.trim())) {
+                result = "⏭️ Поле пропущено";
+            } else if ("name".equals(editField)) {
+                result = habitService.updateName(habit, text);
+            } else if ("category".equals(editField)) {
+                result = habitService.updateCategory(habit, text);
+            } else if ("time".equals(editField)) {
+                result = habitService.updateTime(habit, text);
+            } else {
+                result = "❌ Ошибка";
+            }
+
+            // Очищаем временные данные по полю
+            tempData.remove(chatId + 200000L);
+
+            // Обновляем сохраненные данные привычки
+            tempData.put(chatId + 100001L, habit.getName());
+            tempData.put(chatId + 100002L, habit.getCategory());
+            tempData.put(chatId + 100003L, habit.getReminderTime());
+
+            // Показываем обновленные данные и снова предлагаем выбрать поле
+            message.setText(result + "\n\n" + getHabitDetailsForEdit(habit));
+            userStates.put(chatId, "waiting_edit_field");
+            return message;
+        }
+
         // Обработка команд
         switch (text) {
             case "/start":
                 message.setText("👋 Привет! Я бот-трекер привычек!\n\n" +
                         "📌 /create - создать новую привычку\n" +
                         "📋 /list - показать мои привычки\n" +
+                        "✏️ /edit - редактировать привычку\n" +
+                        "🗑️ /delete - удалить привычку\n" +
                         "✅ /done - отметить выполнение привычки\n" +
-                        "📊 /stats - показать статистику\n\n" +
-                        "Пример: /done → выберите номер → введите цифру");
+                        "📊 /stats - показать статистику");
                 break;
 
             case "/create":
@@ -107,12 +246,32 @@ public class CommandHandler {
                 break;
 
             case "/done":
-                String habitsList = habitService.getHabitsListForDone(chatId);
-                if (habitsList.contains("У вас нет привычек")) {
-                    message.setText(habitsList);
+                String doneList = habitService.getHabitsListForChoice(chatId, "done");
+                if (doneList.contains("У вас нет привычек")) {
+                    message.setText(doneList);
                 } else {
                     userStates.put(chatId, "waiting_done_number");
-                    message.setText(habitsList);
+                    message.setText(doneList);
+                }
+                break;
+
+            case "/delete":
+                String deleteList = habitService.getHabitsListForChoice(chatId, "delete");
+                if (deleteList.contains("У вас нет привычек")) {
+                    message.setText(deleteList);
+                } else {
+                    userStates.put(chatId, "waiting_delete_number");
+                    message.setText(deleteList);
+                }
+                break;
+
+            case "/edit":
+                String editList = habitService.getHabitsListForChoice(chatId, "edit");
+                if (editList.contains("У вас нет привычек")) {
+                    message.setText(editList);
+                } else {
+                    userStates.put(chatId, "waiting_edit_choice");
+                    message.setText(editList);
                 }
                 break;
 
@@ -121,5 +280,17 @@ public class CommandHandler {
         }
 
         return message;
+    }
+
+    // Вспомогательный метод для отображения деталей привычки
+    private String getHabitDetailsForEdit(Habit habit) {
+        return String.format(
+                "✏️ **Редактирование привычки:**\n\n" +
+                        "1️⃣ Название: %s\n" +
+                        "2️⃣ Категория: %s\n" +
+                        "3️⃣ Время: %s\n\n" +
+                        "Введите номер поля, которое хотите изменить (1, 2 или 3), или 0 для завершения:",
+                habit.getName(), habit.getCategory(), habit.getReminderTime()
+        );
     }
 }

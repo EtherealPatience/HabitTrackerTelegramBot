@@ -116,4 +116,35 @@ public class HabitRepository {
         }
         return list;
     }
+
+    // Добавь эти методы в конец класса HabitRepository
+
+    public void update(Habit habit) {
+        String sql = "UPDATE Habits SET name=?, category=?, reminderTime=? WHERE id=?";
+        try (Connection conn = DatabaseConfig.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, habit.getName());
+            stmt.setString(2, habit.getCategory());
+            stmt.setString(3, habit.getReminderTime());
+            stmt.setInt(4, habit.getId());
+            stmt.executeUpdate();
+            System.out.println("✅ Привычка обновлена: " + habit.getName());
+        } catch (SQLException e) {
+            System.err.println("Ошибка update: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    public void delete(int id) {
+        String sql = "DELETE FROM Habits WHERE id = ?";
+        try (Connection conn = DatabaseConfig.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setInt(1, id);
+            stmt.executeUpdate();
+            System.out.println("🗑️ Привычка удалена, id: " + id);
+        } catch (SQLException e) {
+            System.err.println("Ошибка delete: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
 }
