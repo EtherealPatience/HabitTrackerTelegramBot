@@ -66,16 +66,33 @@ public class HabitService {
             sb.append("✏️ **Выберите привычку для редактирования:**\n\n");
         } else if ("delete".equals(action)) {
             sb.append("🗑️ **Выберите привычку для удаления:**\n\n");
+        } else if ("done".equals(action)) {
+            sb.append("✅ **Выберите привычку для отметки выполнения:**\n\n");
         } else {
             sb.append("📋 **Выберите привычку:**\n\n");
         }
 
         for (int i = 0; i < habits.size(); i++) {
             Habit h = habits.get(i);
-            sb.append(i + 1).append(". ").append(h.getName())
-                    .append(" (").append(h.getReminderTime()).append(")\n");
+
+            // Получаем статус выполнения на сегодня
+            HabitLog log = logRepo.findTodayLog(h.getId());
+            String statusIcon;
+            if (log != null && "DONE".equals(log.getStatus())) {
+                statusIcon = "✅";  // Выполнено
+            } else {
+                statusIcon = "⭕";  // Не выполнено
+            }
+
+            sb.append(i + 1).append(". ").append(statusIcon).append(" ")
+                    .append(h.getName()).append(" (").append(h.getReminderTime()).append(")\n");
         }
-        sb.append("\n📝 Введите номер привычки:");
+
+        if ("done".equals(action)) {
+            sb.append("\n📝 Введите номер привычки, которую хотите отметить:");
+        } else {
+            sb.append("\n📝 Введите номер привычки:");
+        }
         return sb.toString();
     }
 
