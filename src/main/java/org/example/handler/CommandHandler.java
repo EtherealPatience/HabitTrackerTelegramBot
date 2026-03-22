@@ -315,6 +315,20 @@ public class CommandHandler {
                 message.setText("📎 Экспорт в Excel...\n\nПожалуйста, подождите, файл будет отправлен.");
                 break;
 
+            case "/mute":
+            case "🔇 /mute":
+                String muteResult = userService.muteNotifications(chatId);
+                message.setText(muteResult);
+                message.setParseMode("Markdown");
+                break;
+
+            case "/unmute":
+            case "🔔 /unmute":
+                String unmuteResult = userService.unmuteNotifications(chatId);
+                message.setText(unmuteResult);
+                message.setParseMode("Markdown");
+                break;
+
             default:
                 message.setText("❓ Неизвестная команда. Используйте /start");
         }

@@ -13,4 +13,5 @@ public class User {
     private String firstName;
     private LocalDateTime registeredDate = LocalDateTime.now();
     private LocalDateTime lastActive = LocalDateTime.now();
+    private boolean notificationsEnabled = true;
 }

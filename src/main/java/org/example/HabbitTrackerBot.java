@@ -43,6 +43,13 @@ public class HabbitTrackerBot extends TelegramLongPollingBot {
                 String text = update.getMessage().getText();
                 long chatId = update.getMessage().getChatId();
 
+                // Преобразуем кнопки с эмодзи в обычные команды
+                if (text.equals("🔇 /mute")) {
+                    text = "/mute";
+                } else if (text.equals("🔔 /unmute")) {
+                    text = "/unmute";
+                }
+
                 // Обработка команды /export
                 if (text.equals("/export")) {
                     byte[] excelData = habitService.exportToExcel(chatId);
@@ -74,7 +81,6 @@ public class HabbitTrackerBot extends TelegramLongPollingBot {
                         CommandHandler.tempData.remove(chatId);
                         CommandHandler.userStates.remove(chatId);
 
-                        // Проверяем формат времени
                         if (!text.matches("([01]?[0-9]|2[0-3]):[0-5][0-9]")) {
                             SendMessage msg = new SendMessage();
                             msg.setChatId(String.valueOf(chatId));
@@ -83,13 +89,11 @@ public class HabbitTrackerBot extends TelegramLongPollingBot {
                             return;
                         }
 
-                        // Сохраняем название и время во временное хранилище
                         CommandHandler.tempData.put(chatId + 1000L, name);
                         CommandHandler.tempData.put(chatId + 2000L, text);
                         CommandHandler.tempData.remove(chatId);
                         CommandHandler.userStates.remove(chatId);
 
-                        // Показываем выбор категории
                         SendMessage msg = new SendMessage();
                         msg.setChatId(String.valueOf(chatId));
                         msg.setText("📌 Выберите категорию для привычки \"" + name + "\":");
@@ -100,7 +104,6 @@ public class HabbitTrackerBot extends TelegramLongPollingBot {
                     }
                 }
 
-                // Обрабатываем команды через CommandHandler
                 SendMessage response = commandHandler.handle(update);
                 if (response != null) {
                     execute(response);
