@@ -1,10 +1,21 @@
 package org.example.service;
 
+import org.apache.poi.ss.usermodel.BorderStyle;
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.FillPatternType;
+import org.apache.poi.ss.usermodel.IndexedColors;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.xssf.usermodel.XSSFCellStyle;
+import org.apache.poi.xssf.usermodel.XSSFFont;
+import org.apache.poi.xssf.usermodel.XSSFSheet;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.example.model.Habit;
 import org.example.model.HabitLog;
 import org.example.model.User;
 import org.example.repository.HabitRepository;
 import org.example.repository.HabitLogRepository;
+
+import java.io.ByteArrayOutputStream;
 import java.util.List;
 
 import java.time.LocalDate;
@@ -491,6 +502,130 @@ public class HabitService {
             } else {
                 return "✨ **НОВЫЙ ДЕНЬ - НОВЫЕ ВОЗМОЖНОСТИ!** Создай привычку и начни путь к лучшей версии себя! 🌟\n";
             }
+        }
+    }
+
+    // Метод для экспорта статистики в Excel
+    public byte[] exportToExcel(long chatId) {
+        User user = userService.getByTelegramId(chatId);
+        if (user == null) return null;
+
+        List<Habit> habits = habitRepo.findByUserId(user.getId());
+        if (habits.isEmpty()) return null;
+
+        LocalDate today = LocalDate.now();
+        LocalDate startOfWeek = today.minusDays(today.getDayOfWeek().getValue() - 1);
+        LocalDate endOfWeek = startOfWeek.plusDays(6);
+
+        try {
+            // Создаем Excel файл
+            XSSFWorkbook workbook = new XSSFWorkbook();
+            XSSFSheet sheet = workbook.createSheet("Статистика привычек");
+
+            // Создаем стиль для заголовков
+            XSSFFont headerFont = workbook.createFont();
+            headerFont.setBold(true);
+            headerFont.setFontHeightInPoints((short) 12);
+            XSSFCellStyle headerStyle = workbook.createCellStyle();
+            headerStyle.setFont(headerFont);
+            headerStyle.setFillForegroundColor(IndexedColors.GREY_25_PERCENT.getIndex());
+            headerStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+            headerStyle.setBorderBottom(BorderStyle.THIN);
+            headerStyle.setBorderTop(BorderStyle.THIN);
+            headerStyle.setBorderLeft(BorderStyle.THIN);
+            headerStyle.setBorderRight(BorderStyle.THIN);
+
+            // Стиль для обычных ячеек
+            XSSFCellStyle cellStyle = workbook.createCellStyle();
+            cellStyle.setBorderBottom(BorderStyle.THIN);
+            cellStyle.setBorderTop(BorderStyle.THIN);
+            cellStyle.setBorderLeft(BorderStyle.THIN);
+            cellStyle.setBorderRight(BorderStyle.THIN);
+
+            // Заголовки
+            String[] headers = {"ID", "Привычка", "Категория", "Время",
+                    "Сегодня", "ПН", "ВТ", "СР", "ЧТ", "ПТ", "СБ", "ВС", "Выполнено за неделю", "%"};
+
+            Row headerRow = sheet.createRow(0);
+            for (int i = 0; i < headers.length; i++) {
+                Cell cell = headerRow.createCell(i);
+                cell.setCellValue(headers[i]);
+                cell.setCellStyle(headerStyle);
+                sheet.setColumnWidth(i, 15 * 256);
+            }
+
+            int rowNum = 1;
+
+            for (Habit habit : habits) {
+                Row row = sheet.createRow(rowNum++);
+
+                // ID
+                Cell idCell = row.createCell(0);
+                idCell.setCellValue(habit.getId());
+                idCell.setCellStyle(cellStyle);
+
+                // Название
+                Cell nameCell = row.createCell(1);
+                nameCell.setCellValue(habit.getName());
+                nameCell.setCellStyle(cellStyle);
+
+                // Категория
+                Cell catCell = row.createCell(2);
+                catCell.setCellValue(habit.getCategory());
+                catCell.setCellStyle(cellStyle);
+
+                // Время
+                Cell timeCell = row.createCell(3);
+                timeCell.setCellValue(habit.getReminderTime());
+                timeCell.setCellStyle(cellStyle);
+
+                // Сегодняшний статус
+                HabitLog todayLog = logRepo.findTodayLog(habit.getId());
+                String todayStatus = (todayLog != null && "DONE".equals(todayLog.getStatus())) ? "✅ Выполнено" : "❌ Не выполнено";
+                Cell todayCell = row.createCell(4);
+                todayCell.setCellValue(todayStatus);
+                todayCell.setCellStyle(cellStyle);
+
+                // Статусы по дням недели
+                int weekCompleted = 0;
+                for (int i = 0; i < 7; i++) {
+                    LocalDate date = startOfWeek.plusDays(i);
+                    List<HabitLog> logs = logRepo.findByHabitIdAndDateRange(habit.getId(), date, date);
+                    boolean completed = false;
+                    for (HabitLog log : logs) {
+                        if ("DONE".equals(log.getStatus())) {
+                            completed = true;
+                            break;
+                        }
+                    }
+                    if (completed) weekCompleted++;
+
+                    Cell dayCell = row.createCell(5 + i);
+                    dayCell.setCellValue(completed ? "✅" : "❌");
+                    dayCell.setCellStyle(cellStyle);
+                }
+
+                // Выполнено за неделю
+                Cell weekCell = row.createCell(12);
+                weekCell.setCellValue(weekCompleted + "/7");
+                weekCell.setCellStyle(cellStyle);
+
+                // Процент
+                Cell percentCell = row.createCell(13);
+                percentCell.setCellValue(weekCompleted * 100 / 7 + "%");
+                percentCell.setCellStyle(cellStyle);
+            }
+
+            // Сохраняем в массив байтов
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+            workbook.write(outputStream);
+            workbook.close();
+
+            return outputStream.toByteArray();
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
         }
     }
 }

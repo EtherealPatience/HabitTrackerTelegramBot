@@ -240,7 +240,7 @@ public class CommandHandler {
                         "🗑️ /delete - удалить привычку\n" +
                         "✅ /done - отметить выполнение привычки\n" +
                         "🔄 /undone - отменить выполнение привычки\n" +
-                        "📊 /stats - показать статистику\n"+
+                        "📊 /stats - показать статистику\n" +
                         "📎 /export - выгрузить статистику в Excel\n" +
                         "🔇 /mute - отключить напоминания\n" +
                         "🔔 /unmute - включить напоминания\n" +
@@ -307,6 +307,12 @@ public class CommandHandler {
                     message.setText(undoneList);
                     message.setParseMode("Markdown");
                 }
+                break;
+
+            case "/export":
+                // Экспорт обрабатывается в HabbitTrackerBot, здесь просто показываем сообщение
+                // или можно вообще ничего не делать, так как export обрабатывается раньше
+                message.setText("📎 Экспорт в Excel...\n\nПожалуйста, подождите, файл будет отправлен.");
                 break;
 
             default:
