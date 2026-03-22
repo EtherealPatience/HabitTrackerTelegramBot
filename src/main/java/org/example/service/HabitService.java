@@ -431,9 +431,9 @@ public class HabitService {
                     }
                 }
                 if (completed) {
-                    sb.append("✅  ");
+                    sb.append("✅   ");
                 } else {
-                    sb.append("❌  ");
+                    sb.append("❌   ");
                 }
             }
             sb.append("\n");
@@ -441,7 +441,7 @@ public class HabitService {
             // Строка с днями недели - каждый занимает ровно 4 символа (ПН + два пробела)
             sb.append("   ");
             for (int i = 0; i < 7; i++) {
-                sb.append(dayIcons[i]).append(" ");
+                sb.append(dayIcons[i]).append("  ");
             }
             sb.append("\n\n");
         }
